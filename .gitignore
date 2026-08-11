@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+.venv-cuda/
+frontend/node_modules/
+frontend/dist/
+
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.local
+
+# Data & models (keep structure via .gitkeep)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/crops/*
+!data/crops/.gitkeep
+data/masks/*
+!data/masks/.gitkeep
+data/embeddings/*
+!data/embeddings/.gitkeep
+models/*
+!models/.gitkeep
+storage/*
+!storage/.gitkeep
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Ultralytics / torch cache
+runs/
+*.pt
+!models/.gitkeep

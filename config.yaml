@@ -1,0 +1,85 @@
+app:
+  host: "0.0.0.0"
+  port: 8000
+  name: "object-memory"
+
+paths:
+  raw: "data/raw"
+  processed: "data/processed"
+  crops: "data/crops"
+  masks: "data/masks"
+  embeddings: "data/embeddings"
+  models: "models"
+  storage: "storage"
+
+models:
+  detector: "yolo11n.pt"
+  segmenter: "sam2_b.pt"
+  embedder: "ViT-B-32"
+  embedder_pretrained: "openai"
+  # auto: use cuda if available else cpu
+  device: "auto"
+
+perception:
+  conf_threshold: 0.25
+  iou_threshold: 0.45
+  max_detections: 50
+
+embedding:
+  vector_size: 512
+  normalize: true
+
+qdrant:
+  host: "localhost"
+  port: 6333
+  # Prefer remote if reachable; otherwise use local on-disk store
+  prefer_local: false
+  local_path: "storage/qdrant"
+  collections:
+    observations: "observations"
+    clusters: "clusters"
+
+neo4j:
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "objectmemory"
+  # auto | neo4j | local
+  backend: "auto"
+  local_path: "storage/local_graph.json"
+
+ollama:
+  base_url: "http://localhost:11434"
+  # kept for backward compatibility (defaults to rag_model)
+  model: "qwen3:8b"
+  rag_model: "qwen3:8b"
+  fallback_model: "llama3.2:latest"
+  vision_model: "qwen2.5vl:3b"
+  vision_high_quality_model: "qwen3-vl:8b-instruct-q4_K_M"
+  vision_enabled: true
+  vision_on_new_object: true
+  vision_on_uncertain: true
+  vision_low_confidence_threshold: 0.90
+  timeout_seconds: 120
+
+memory:
+  # Calibrate on real objects later. Bias is anti-merge (prefer NEW over false KNOWN).
+  known_threshold: 0.90
+  uncertain_threshold: 0.70
+  # backward-compatible alias used if known_threshold not applied
+  match_threshold: 0.90
+  cluster_search_top_k: 3
+  object_search_top_k: 10
+  min_cluster_size: 3
+  # If true, UNCERTAIN band creates a NEW object (safer). If false, accepts best candidate as KNOWN.
+  uncertain_as_new: true
+
+clustering:
+  n_clusters_per_class: 5
+  min_samples_for_rebuild: 5
+
+default_scene:
+  scene_id: "scene_default"
+  name: "default"
+
+logging:
+  level: "INFO"
