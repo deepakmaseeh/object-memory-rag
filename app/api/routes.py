@@ -13,6 +13,13 @@ from app.health import HealthService
 from app.memory.memory_updater import PipelineService
 from app.rag.service import RAGService
 from app.schemas import HealthStatus, MemoryResponse, ProcessImageResult
+from app.schemas.processing import (
+    PrepareImageResult,
+    ProcessingOptions,
+    ProcessingStrength,
+    RecognitionSource,
+    RecognizeImageRequest,
+)
 
 router = APIRouter()
 
@@ -86,6 +93,51 @@ async def ingest_image(file: UploadFile = File(...)) -> dict:
         "width": image.width,
         "height": image.height,
     }
+
+
+@router.post("/process/prepare", response_model=PrepareImageResult)
+async def prepare_image(
+    file: UploadFile = File(...),
+    scene_id: Optional[str] = Form(default=None),
+    enhance_for_ai: bool = Form(default=False),
+    remove_background: bool = Form(default=False),
+    clean_for_auction: bool = Form(default=False),
+    remove_noise: bool = Form(default=False),
+    improve_resolution: bool = Form(default=False),
+    strength: ProcessingStrength = Form(default=ProcessingStrength.AUTO),
+) -> PrepareImageResult:
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    options = ProcessingOptions(
+        enhance_for_ai=enhance_for_ai,
+        remove_background=remove_background,
+        clean_for_auction=clean_for_auction,
+        remove_noise=remove_noise,
+        improve_resolution=improve_resolution,
+    )
+    pipeline = get_pipeline()
+    try:
+        return pipeline.prepare_image_bytes(
+            data,
+            filename=file.filename or "upload.jpg",
+            scene_id=scene_id,
+            options=options,
+            strength=strength,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/process/recognize", response_model=ProcessImageResult)
+def recognize_image(body: RecognizeImageRequest) -> ProcessImageResult:
+    pipeline = get_pipeline()
+    try:
+        return pipeline.recognize_image(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/process/image", response_model=ProcessImageResult)
@@ -262,6 +314,24 @@ def rebuild_clusters(body: RebuildBody) -> dict:
         return {"clusters": result}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/media/processed/{image_id}/{kind}")
+def get_processed_derivative(image_id: str, kind: str):
+    pipeline = get_pipeline()
+    path = pipeline.blob_store.get_image_derivative_path(image_id, kind)
+    if not path or not path.exists():
+        raise HTTPException(status_code=404, detail="Processed derivative not found")
+    return FileResponse(path)
+
+
+@router.get("/media/object/{object_id}/{kind}")
+def get_object_derivative(object_id: str, kind: str):
+    pipeline = get_pipeline()
+    path = pipeline.blob_store.get_object_derivative_path(object_id, kind)
+    if not path or not path.exists():
+        raise HTTPException(status_code=404, detail="Object derivative not found")
+    return FileResponse(path)
 
 
 @router.get("/media/crop/{observation_id}")

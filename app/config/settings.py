@@ -25,8 +25,30 @@ class PathsConfig(BaseModel):
     crops: str = "data/crops"
     masks: str = "data/masks"
     embeddings: str = "data/embeddings"
+    objects: str = "data/objects"
     models: str = "models"
     storage: str = "storage"
+
+
+class PreprocessingEnhanceConfig(BaseModel):
+    default_strength: str = "auto"
+    max_upscale_factor: float = 2.0
+    auction_background_rgb: list[int] = Field(default_factory=lambda: [255, 255, 255])
+    auction_padding_ratio: float = 0.12
+    presentation_detection_strategy: str = "largest_area"
+    clahe_clip: dict[str, float] = Field(
+        default_factory=lambda: {"light": 1.2, "medium": 1.5, "strong": 2.0, "auto": 1.5}
+    )
+    clahe_tile: int = 8
+    denoise_strength: dict[str, int] = Field(
+        default_factory=lambda: {"light": 3, "medium": 5, "strong": 7, "auto": 5}
+    )
+    sharpen_amount: dict[str, float] = Field(
+        default_factory=lambda: {"light": 0.2, "medium": 0.35, "strong": 0.5, "auto": 0.35}
+    )
+    upscale_factor: dict[str, float] = Field(
+        default_factory=lambda: {"light": 1.25, "medium": 1.5, "strong": 2.0, "auto": 1.25}
+    )
 
 
 class ModelsConfig(BaseModel):
@@ -83,6 +105,34 @@ class OllamaConfig(BaseModel):
     timeout_seconds: int = 120
 
 
+class IdentityWeightsConfig(BaseModel):
+    visual: float = 0.40
+    text: float = 0.20
+    brand: float = 0.15
+    semantic: float = 0.10
+    attributes: float = 0.10
+    historical: float = 0.05
+    product: float = 0.10
+    shape: float = 0.05
+
+
+class IdentityThresholdsConfig(BaseModel):
+    known: float = 0.90
+    uncertain: float = 0.70
+
+
+class IdentityConfig(BaseModel):
+    weights: IdentityWeightsConfig = Field(default_factory=IdentityWeightsConfig)
+    thresholds: IdentityThresholdsConfig = Field(default_factory=IdentityThresholdsConfig)
+    conflict_min_confidence: float = 0.70
+    vlm_verify_min_confidence: float = 0.65
+    enable_multi_signal: bool = True
+
+
+class OCRConfig(BaseModel):
+    backend: str = "auto"  # auto | none | easyocr | pytesseract
+
+
 class MemoryConfig(BaseModel):
     # Identity bands (calibrate later on real data). Prefer not merging aggressively.
     known_threshold: float = 0.90
@@ -122,6 +172,9 @@ class Settings(BaseModel):
     neo4j: Neo4jConfig = Field(default_factory=Neo4jConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    identity: IdentityConfig = Field(default_factory=IdentityConfig)
+    ocr: OCRConfig = Field(default_factory=OCRConfig)
+    preprocessing: PreprocessingEnhanceConfig = Field(default_factory=PreprocessingEnhanceConfig)
     clustering: ClusteringConfig = Field(default_factory=ClusteringConfig)
     default_scene: DefaultSceneConfig = Field(default_factory=DefaultSceneConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
@@ -140,6 +193,7 @@ class Settings(BaseModel):
             self.paths.crops,
             self.paths.masks,
             self.paths.embeddings,
+            self.paths.objects,
             self.paths.models,
             self.paths.storage,
         ):

@@ -29,6 +29,8 @@ data/masks/*
 !data/masks/.gitkeep
 data/embeddings/*
 !data/embeddings/.gitkeep
+data/objects/*
+!data/objects/.gitkeep
 models/*
 !models/.gitkeep
 storage/*

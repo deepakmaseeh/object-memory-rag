@@ -73,6 +73,9 @@ class SegmentedDetection(BaseModel):
     detection: Detection
     mask_path: Optional[str] = None
     crop_path: Optional[str] = None
+    transparent_path: Optional[str] = None
+    crop_original_path: Optional[str] = None
+    crop_enhanced_path: Optional[str] = None
 
 
 class Observation(BaseModel):
@@ -89,7 +92,16 @@ class Observation(BaseModel):
     scene_id: Optional[str] = None
     mask_path: Optional[str] = None
     crop_path: Optional[str] = None
+    transparent_path: Optional[str] = None
+    crop_original_path: Optional[str] = None
+    crop_enhanced_path: Optional[str] = None
     attributes: dict[str, Any] = Field(default_factory=dict)
+    product_signature_id: Optional[str] = None
+    embedding_ref: Optional[str] = None
+    ocr_ref: Optional[str] = None
+    identity_score: Optional[float] = None
+    identity_state: Optional[str] = None
+    object_signature: Optional[dict[str, Any]] = None
 
 
 class MemoryObject(BaseModel):
@@ -103,6 +115,11 @@ class MemoryObject(BaseModel):
     observation_count: int = 0
     cluster_id: Optional[str] = None
     attributes: dict[str, Any] = Field(default_factory=dict)
+    product_signature_id: Optional[str] = None
+    identity_state: Optional[str] = None
+    identity_confidence: Optional[float] = None
+    representative_observation_id: Optional[str] = None
+    object_signature: Optional[dict[str, Any]] = None
 
 
 class Cluster(BaseModel):
@@ -143,6 +160,10 @@ class ObjectMatch(BaseModel):
     decision: str = "NEW"
     candidate_object_id: Optional[str] = None
     candidate_scores: list[dict[str, Any]] = Field(default_factory=list)
+    identity_score: Optional[dict[str, Any]] = None
+    product_signature_id: Optional[str] = None
+    reason_codes: list[str] = Field(default_factory=list)
+    object_signature: Optional[dict[str, Any]] = None
 
 
 class MemoryQuery(BaseModel):
@@ -162,6 +183,10 @@ class MemoryContextItem(BaseModel):
     summary: str = ""
     attributes: dict[str, Any] = Field(default_factory=dict)
     locations: list[str] = Field(default_factory=list)
+    product_signature_id: Optional[str] = None
+    product_label: Optional[str] = None
+    identity_state: Optional[str] = None
+    query_mode: Optional[str] = None  # instance | product | class
 
 
 class MemoryResponse(BaseModel):
@@ -182,6 +207,11 @@ class ProcessImageResult(BaseModel):
     request_id: str = ""
     device: Optional[str] = None
     models: dict[str, Any] = Field(default_factory=dict)
+    recognition_source: Optional[str] = "original"
+    recognition_path: Optional[str] = None
+    processing_options: Optional[dict[str, Any]] = None
+    derivatives: Optional[dict[str, Any]] = None
+    preview_urls: dict[str, str] = Field(default_factory=dict)
 
 
 class ObservationMatchResult(BaseModel):
@@ -201,21 +231,37 @@ class ObservationMatchResult(BaseModel):
     image_id: Optional[str] = None
     crop_path: Optional[str] = None
     mask_path: Optional[str] = None
+    transparent_path: Optional[str] = None
+    crop_original_path: Optional[str] = None
+    crop_enhanced_path: Optional[str] = None
+    auction_crop_path: Optional[str] = None
     memory_saved: bool = True
     embedding_stored: bool = True
     graph_updated: bool = True
     cluster_assigned: bool = False
     candidate_scores: list[dict[str, Any]] = Field(default_factory=list)
+    product_signature_id: Optional[str] = None
+    product_label: Optional[str] = None
+    identity_score: Optional[dict[str, Any]] = None
+    reason_codes: list[str] = Field(default_factory=list)
+    object_signature: Optional[dict[str, Any]] = None
+    ocr_text: Optional[str] = None
+    identity_path: Optional[str] = None  # known_fast | new_uncertain
 
 
 class PipelineLatencies(BaseModel):
     yolo_ms: float = 0.0
     sam_ms: float = 0.0
     embedding_ms: float = 0.0
+    ocr_ms: float = 0.0
+    preprocess_ms: float = 0.0
+    auction_ms: float = 0.0
     cluster_lookup_ms: float = 0.0
     identity_resolution_ms: float = 0.0
-    neo4j_update_ms: float = 0.0
+    identity_scoring_ms: float = 0.0
     vlm_ms: float = 0.0
+    vlm_verify_ms: float = 0.0
+    neo4j_update_ms: float = 0.0
     perception_ms: float = 0.0
     total_ms: float = 0.0
 

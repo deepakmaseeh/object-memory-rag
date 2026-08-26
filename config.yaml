@@ -9,6 +9,7 @@ paths:
   crops: "data/crops"
   masks: "data/masks"
   embeddings: "data/embeddings"
+  objects: "data/objects"
   models: "models"
   storage: "storage"
 
@@ -72,6 +73,54 @@ memory:
   min_cluster_size: 3
   # If true, UNCERTAIN band creates a NEW object (safer). If false, accepts best candidate as KNOWN.
   uncertain_as_new: true
+
+identity:
+  enable_multi_signal: true
+  conflict_min_confidence: 0.70
+  vlm_verify_min_confidence: 0.65
+  weights:
+    visual: 0.40
+    text: 0.20
+    brand: 0.15
+    semantic: 0.10
+    attributes: 0.10
+    historical: 0.05
+    product: 0.10
+    shape: 0.05
+  thresholds:
+    known: 0.90
+    uncertain: 0.70
+
+ocr:
+  backend: auto  # auto | none | easyocr | pytesseract
+
+preprocessing:
+  default_strength: auto
+  max_upscale_factor: 2.0
+  auction_background_rgb: [255, 255, 255]
+  auction_padding_ratio: 0.12
+  presentation_detection_strategy: largest_area
+  clahe_clip:
+    light: 1.2
+    medium: 1.5
+    strong: 2.0
+    auto: 1.5
+  clahe_tile: 8
+  denoise_strength:
+    light: 3
+    medium: 5
+    strong: 7
+    auto: 5
+  sharpen_amount:
+    light: 0.2
+    medium: 0.35
+    strong: 0.5
+    auto: 0.35
+  upscale_factor:
+    light: 1.25
+    medium: 1.5
+    strong: 2.0
+    auto: 1.25
 
 clustering:
   n_clusters_per_class: 5

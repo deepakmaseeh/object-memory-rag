@@ -8,6 +8,7 @@ from neo4j import GraphDatabase
 from app.config import Settings, get_settings
 from app.graph.base import GraphStore
 from app.schemas import ImageRecord, MemoryObject, Observation, Scene
+from app.schemas.identity import ProductSignature
 
 
 class Neo4jGraphStore(GraphStore):
@@ -117,6 +118,63 @@ class Neo4jGraphStore(GraphStore):
                 attributes=json.dumps(attributes or {}),
                 pairs=pairs,
             )
+
+    def upsert_product_signature(self, product: ProductSignature) -> None:
+        import json
+
+        query = """
+        MERGE (p:ProductSignature {product_signature_id: $product_signature_id})
+        SET p.class_name = $class_name,
+            p.brand = $brand,
+            p.product_name = $product_name,
+            p.text_signature = $text_signature,
+            p.semantic_attributes = $semantic_attributes
+        """
+        with self._driver.session() as session:
+            session.run(
+                query,
+                product_signature_id=product.product_signature_id,
+                class_name=product.class_name,
+                brand=product.brand,
+                product_name=product.product_name,
+                text_signature=product.text_signature,
+                semantic_attributes=json.dumps(product.semantic_attributes or {}),
+            )
+
+    def link_object_to_product(self, object_id: str, product_signature_id: str) -> None:
+        query = """
+        MATCH (o:Object {object_id: $object_id})
+        MERGE (p:ProductSignature {product_signature_id: $product_signature_id})
+        MERGE (o)-[:INSTANCE_OF]->(p)
+        SET o.product_signature_id = $product_signature_id
+        """
+        with self._driver.session() as session:
+            session.run(
+                query,
+                object_id=object_id,
+                product_signature_id=product_signature_id,
+            )
+
+    def get_product_signature(self, product_signature_id: str) -> Optional[dict[str, Any]]:
+        query = """
+        MATCH (p:ProductSignature {product_signature_id: $product_signature_id})
+        RETURN p
+        """
+        with self._driver.session() as session:
+            rec = session.run(query, product_signature_id=product_signature_id).single()
+            if not rec:
+                return None
+            node = dict(rec["p"])
+            return node
+
+    def list_objects_for_product(self, product_signature_id: str) -> list[dict[str, Any]]:
+        query = """
+        MATCH (o:Object)-[:INSTANCE_OF]->(p:ProductSignature {product_signature_id: $pid})
+        RETURN o
+        """
+        with self._driver.session() as session:
+            rows = session.run(query, pid=product_signature_id)
+            return [dict(r["o"]) for r in rows]
 
     def ensure_scene(self, scene: Scene) -> None:
         query = """

@@ -9,6 +9,8 @@ import httpx
 from app.config import Settings, get_settings
 from app.logging_utils import get_logger
 
+from app.schemas.identity import VLMVerificationResult
+
 log = get_logger(__name__)
 
 
@@ -37,9 +39,12 @@ class ConditionalVLM:
             return True
         if not self.enabled:
             return False
+        decision = (decision or "").upper()
+        # KNOWN fast path: do not invoke VLM for routine re-observations
+        if decision == "KNOWN" and not attributes_changed:
+            return False
         if attributes_changed:
             return True
-        decision = (decision or "").upper()
         if decision in {"NEW", "UNCERTAIN"} and self.settings.ollama.vision_on_new_object:
             return True
         if is_new and self.settings.ollama.vision_on_new_object:
@@ -48,6 +53,11 @@ class ConditionalVLM:
         if (not is_new) and similarity < low and self.settings.ollama.vision_on_uncertain:
             return True
         return False
+
+    def should_verify(self, decision: str) -> bool:
+        if not self.enabled:
+            return False
+        return (decision or "").upper() == "UNCERTAIN"
 
     def describe_crop(self, crop_path: str | Path, class_name: str = "") -> dict[str, Any]:
         """Structured attributes for long-term object memory."""
@@ -101,3 +111,89 @@ class ConditionalVLM:
         except Exception:
             pass
         return {"notes": text[:500]} if text else {}
+
+    def verify_same_physical_object(
+        self,
+        new_crop_path: str | Path,
+        candidate_crop_path: str | Path,
+        *,
+        candidate_metadata: Optional[dict[str, Any]] = None,
+        ocr_text: str = "",
+    ) -> VLMVerificationResult:
+        """Dual-crop VLM verification for UNCERTAIN identity cases."""
+        new_path = Path(new_crop_path)
+        cand_path = Path(candidate_crop_path)
+        if not new_path.exists() or not cand_path.exists():
+            return VLMVerificationResult(
+                same_physical_object=None,
+                confidence=0.0,
+                reason="missing crop image",
+            )
+        try:
+            images = [
+                base64.b64encode(new_path.read_bytes()).decode("ascii"),
+                base64.b64encode(cand_path.read_bytes()).decode("ascii"),
+            ]
+            meta = candidate_metadata or {}
+            prompt = (
+                "You compare two cropped photos of objects for a physical-instance memory system. "
+                "Image 1 is the NEW sighting. Image 2 is a CANDIDATE previously stored object.\n"
+                f"Candidate metadata: {meta}\n"
+                f"OCR on new crop: {ocr_text or 'none'}\n"
+                "Return ONLY JSON with keys: "
+                "same_physical_object (boolean), confidence (0-1 number), reason (string), "
+                "matching_features (array of strings), different_features (array of strings). "
+                "same_physical_object means the exact same physical item, not merely same brand/product."
+            )
+            url = f"{self.settings.ollama.base_url.rstrip('/')}/api/generate"
+            payload = {
+                "model": self.model,
+                "prompt": prompt,
+                "images": images,
+                "stream": False,
+            }
+            with httpx.Client(timeout=self.settings.ollama.timeout_seconds) as client:
+                resp = client.post(url, json=payload)
+                resp.raise_for_status()
+                text = (resp.json().get("response") or "").strip()
+            return self._parse_verification(text)
+        except Exception as exc:
+            log.warning("VLM verify failed: %s", exc)
+            return VLMVerificationResult(
+                same_physical_object=None,
+                confidence=0.0,
+                reason=str(exc),
+            )
+
+    @staticmethod
+    def _parse_verification(text: str) -> VLMVerificationResult:
+        import json
+        import re
+
+        text = text.strip()
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        if "{" in text and "}" in text:
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            text = text[start:end]
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict):
+                same = data.get("same_physical_object")
+                if isinstance(same, str):
+                    same = same.lower() in {"true", "yes", "1"}
+                return VLMVerificationResult(
+                    same_physical_object=same if same is not None else None,
+                    confidence=float(data.get("confidence") or 0.0),
+                    reason=str(data.get("reason") or ""),
+                    matching_features=list(data.get("matching_features") or []),
+                    different_features=list(data.get("different_features") or []),
+                )
+        except Exception:
+            pass
+        return VLMVerificationResult(
+            same_physical_object=None,
+            confidence=0.0,
+            reason=text[:300],
+        )

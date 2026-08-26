@@ -8,6 +8,7 @@ from typing import Any, Optional
 from app.config import Settings, get_settings
 from app.graph.base import GraphStore
 from app.schemas import ImageRecord, MemoryObject, Observation, Scene
+from app.schemas.identity import ProductSignature
 
 
 class LocalGraphStore(GraphStore):
@@ -39,6 +40,7 @@ class LocalGraphStore(GraphStore):
             "clusters": {},
             "locations": {},
             "attributes": {},
+            "product_signatures": {},
             "links": {
                 "observed_as": [],  # (object_id, observation_id)
                 "from_image": [],
@@ -46,6 +48,7 @@ class LocalGraphStore(GraphStore):
                 "member_of": [],
                 "located_at": [],
                 "has_attribute": [],
+                "instance_of": [],  # (object_id, product_signature_id)
             },
         }
 
@@ -103,6 +106,43 @@ class LocalGraphStore(GraphStore):
                 if pair not in self._data["links"]["has_attribute"]:
                     self._data["links"]["has_attribute"].append(pair)
             self._save()
+
+    def upsert_product_signature(self, product: ProductSignature) -> None:
+        with self._lock:
+            if "product_signatures" not in self._data:
+                self._data["product_signatures"] = {}
+            self._data["product_signatures"][product.product_signature_id] = (
+                product.model_dump(mode="json")
+            )
+            self._save()
+
+    def link_object_to_product(self, object_id: str, product_signature_id: str) -> None:
+        with self._lock:
+            if object_id in self._data["objects"]:
+                self._data["objects"][object_id]["product_signature_id"] = (
+                    product_signature_id
+                )
+            pair = [object_id, product_signature_id]
+            links = self._data["links"]
+            if "instance_of" not in links:
+                links["instance_of"] = []
+            if pair not in links["instance_of"]:
+                links["instance_of"].append(pair)
+            self._save()
+
+    def get_product_signature(self, product_signature_id: str) -> Optional[dict[str, Any]]:
+        with self._lock:
+            ps = (self._data.get("product_signatures") or {}).get(product_signature_id)
+            return dict(ps) if ps else None
+
+    def list_objects_for_product(self, product_signature_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            oids = [
+                o
+                for o, p in self._data["links"].get("instance_of", [])
+                if p == product_signature_id
+            ]
+            return [dict(self._data["objects"][oid]) for oid in oids if oid in self._data["objects"]]
 
     def create_observation(
         self,
@@ -369,6 +409,13 @@ class LocalGraphStore(GraphStore):
                         attr if isinstance(attr, dict) else {"name": attr_name},
                     )
                     add_edge(f"obj:{oid}", f"attr:{attr_name}", "HAS_ATTRIBUTE")
+                pid = obj.get("product_signature_id")
+                if pid:
+                    ps = (self._data.get("product_signatures") or {}).get(pid) or {
+                        "product_signature_id": pid
+                    }
+                    add_node(f"product:{pid}", "ProductSignature", pid, ps)
+                    add_edge(f"obj:{oid}", f"product:{pid}", "INSTANCE_OF")
             return {"nodes": nodes, "edges": edges}
 
     def stats(self) -> dict[str, int]:

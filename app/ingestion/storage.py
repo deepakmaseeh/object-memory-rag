@@ -28,6 +28,72 @@ class BlobStore:
         self.crops_dir = self.settings.resolve_path(self.settings.paths.crops)
         self.masks_dir = self.settings.resolve_path(self.settings.paths.masks)
         self.embeddings_dir = self.settings.resolve_path(self.settings.paths.embeddings)
+        self.objects_dir = self.settings.resolve_path(self.settings.paths.objects)
+
+    def save_image_derivative(
+        self,
+        image_id: str,
+        kind: str,
+        image: Union[Image.Image, np.ndarray, Path, str],
+        suffix: Optional[str] = None,
+        meta: Optional[dict[str, Any]] = None,
+    ) -> Path:
+        ext = suffix or (".png" if kind == "transparent" else ".jpg")
+        dest = self.processed_dir / f"{image_id}_{kind}{ext}"
+        if ext == ".png" and isinstance(image, Image.Image) and image.mode == "RGBA":
+            image.save(dest)
+        else:
+            self._write_image(dest, image)
+        self._write_meta(
+            dest,
+            {
+                "image_id": image_id,
+                "path": str(dest),
+                "kind": kind,
+                **(meta or {}),
+            },
+        )
+        return dest
+
+    def save_object_derivative(
+        self,
+        object_id: str,
+        kind: str,
+        image: Union[Image.Image, np.ndarray, Path, str],
+        suffix: str = ".png",
+        meta: Optional[dict[str, Any]] = None,
+    ) -> Path:
+        obj_dir = self.objects_dir / object_id
+        obj_dir.mkdir(parents=True, exist_ok=True)
+        dest = obj_dir / f"{kind}{suffix}"
+        if suffix == ".png" and isinstance(image, Image.Image) and image.mode == "RGBA":
+            image.save(dest)
+        else:
+            self._write_image(dest, image)
+        self._write_meta(
+            dest,
+            {
+                "object_id": object_id,
+                "path": str(dest),
+                "kind": kind,
+                **(meta or {}),
+            },
+        )
+        return dest
+
+    def get_image_derivative_path(self, image_id: str, kind: str) -> Optional[Path]:
+        for ext in (".jpg", ".jpeg", ".png", ".webp"):
+            p = self.processed_dir / f"{image_id}_{kind}{ext}"
+            if p.exists():
+                return p
+        return None
+
+    def get_object_derivative_path(self, object_id: str, kind: str) -> Optional[Path]:
+        for ext in (".jpg", ".jpeg", ".png", ".webp"):
+            p = self.objects_dir / object_id / f"{kind}{ext}"
+            if p.exists():
+                return p
+        return None
 
     def save_raw(
         self,
@@ -88,7 +154,10 @@ class BlobStore:
         meta: Optional[dict[str, Any]] = None,
     ) -> Path:
         dest = self.crops_dir / f"{observation_id}{suffix}"
-        self._write_image(dest, crop)
+        if suffix.endswith(".png") and isinstance(crop, Image.Image) and crop.mode == "RGBA":
+            crop.save(dest)
+        else:
+            self._write_image(dest, crop)
         self._write_meta(
             dest,
             {
@@ -147,6 +216,9 @@ class BlobStore:
             pil.save(dest, quality=95)
             return
         if isinstance(image, Image.Image):
-            image.convert("RGB").save(dest, quality=95)
+            if dest.suffix.lower() == ".png" and image.mode == "RGBA":
+                image.save(dest)
+            else:
+                image.convert("RGB").save(dest, quality=95)
             return
         raise TypeError(f"Unsupported image type: {type(image)}")

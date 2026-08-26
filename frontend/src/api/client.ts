@@ -2,7 +2,11 @@ import type {
   GraphPayload,
   HealthStatus,
   MemoryResponse,
+  PrepareImageResult,
   ProcessImageResult,
+  ProcessingOptions,
+  ProcessingStrength,
+  RecognitionSource,
   Stats,
 } from './types'
 
@@ -56,6 +60,46 @@ export const api = {
 
   system: () => request<Record<string, unknown>>('/system'),
 
+  prepareImage: async (
+    file: File,
+    options: ProcessingOptions,
+    strength: ProcessingStrength = 'auto',
+    sceneId?: string,
+  ) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('enhance_for_ai', String(options.enhance_for_ai))
+    form.append('remove_background', String(options.remove_background))
+    form.append('clean_for_auction', String(options.clean_for_auction))
+    form.append('remove_noise', String(options.remove_noise))
+    form.append('improve_resolution', String(options.improve_resolution))
+    form.append('strength', strength)
+    if (sceneId) form.append('scene_id', sceneId)
+    return request<PrepareImageResult>('/process/prepare', {
+      method: 'POST',
+      body: form,
+    })
+  },
+
+  recognizeImage: (
+    imageId: string,
+    recognitionSource: RecognitionSource = 'original',
+    location = 'Desk',
+    forceVlm = false,
+    removeBackground = false,
+  ) =>
+    request<ProcessImageResult>('/process/recognize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_id: imageId,
+        recognition_source: recognitionSource,
+        location_name: location,
+        force_vlm: forceVlm,
+        remove_background: removeBackground,
+      }),
+    }),
+
   processImage: async (file: File, location = 'Desk', forceVlm = false) => {
     const form = new FormData()
     form.append('file', file)
@@ -96,5 +140,9 @@ export const api = {
     crop: (observationId: string) => `${API_BASE}/media/crop/${encodeURIComponent(observationId)}`,
     mask: (observationId: string) => `${API_BASE}/media/mask/${encodeURIComponent(observationId)}`,
     raw: (imageId: string) => `${API_BASE}/media/raw/${encodeURIComponent(imageId)}`,
+    processed: (imageId: string, kind: string) =>
+      `${API_BASE}/media/processed/${encodeURIComponent(imageId)}/${encodeURIComponent(kind)}`,
+    object: (objectId: string, kind: string) =>
+      `${API_BASE}/media/object/${encodeURIComponent(objectId)}/${encodeURIComponent(kind)}`,
   },
 }

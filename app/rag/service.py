@@ -136,9 +136,11 @@ class RAGService:
         locs = getattr(top, "locations", None) or []
         loc = (locs[-1] if locs else None) or top.last_location or "unknown location"
         parts = [
-            f"This is a {top.class_name} (object {top.object_id}).",
-            f"It was last seen at {loc}",
+            f"This is a {top.class_name} (physical object {top.object_id}).",
         ]
+        if getattr(top, "product_label", None):
+            parts.append(f"Product identity: {top.product_label}.")
+        parts.append(f"It was last seen at {loc}")
         if top.last_scene:
             parts[-1] += f" (scene {top.last_scene})"
         parts[-1] += "."
@@ -156,7 +158,13 @@ class RAGService:
 
         prompt = (
             "You are an object memory assistant. Answer using ONLY the memory context below.\n"
-            "Use stored attributes, locations, and observation timestamps.\n"
+            "Distinguish three concepts:\n"
+            "- OBJECT CLASS: what kind of thing (e.g. bottle)\n"
+            "- PRODUCT: brand/product identity (e.g. Aquafina 500ml) — may have multiple physical instances\n"
+            "- PHYSICAL OBJECT: a specific instance (object_id) you have seen before\n"
+            "For 'have I seen this exact X before' answer about the physical object_id.\n"
+            "For 'how many of this product' count instances sharing a product signature.\n"
+            "For 'which brand' use semantic/OCR attributes.\n"
             "If the context is insufficient, say you do not know. Do not invent objects.\n"
             "Be concise (2-4 sentences).\n\n"
             f"Memory context:\n{context_text}\n\n"

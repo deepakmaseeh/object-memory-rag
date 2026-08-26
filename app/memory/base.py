@@ -64,5 +64,8 @@ class IdentityResolver(ABC):
         vector: list[float],
         class_name: str,
         class_id: int = 0,
+        *,
+        new_signature: Any = None,
+        graph_store: Any = None,
     ) -> ObjectMatch:
         ...
